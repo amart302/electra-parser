@@ -1,170 +1,182 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
+import { TimeoutError } from 'puppeteer';
 
 import { BrowserService } from '@/browser/browser.service';
 
-import { ParseResult } from './parser.service';
+import type { ParsedSection } from './types/parsed-data.types';
 
 @Injectable()
 export class CatalogService {
+  private readonly logger = new Logger(CatalogService.name);
+
   constructor(private readonly browserService: BrowserService) {}
 
-  async getCategoryUrl(url: string): Promise<string> {
+  async getCategories(url: string): Promise<ParsedSection[]> {
     const page = this.browserService.getPage();
 
-    await page.goto(url, { waitUntil: 'domcontentloaded' });
+    const response = await page.goto(url, { waitUntil: 'domcontentloaded' });
 
-    const selector = 'a.ttl[href="/catalog/Lyustry/"]';
+    if (!response || !response.ok()) {
+      throw new Error(
+        `Не удалось загрузить ${url}: HTTP ${response?.status() ?? 'нет ответа'}`,
+      );
+    }
+
+    const selector = 'main .sneha-catalog-section a.ttl[href^="/catalog/"]';
 
     await page.waitForSelector(selector);
 
-    const categoryUrl = await page.$eval(selector, (element) => element.href);
-
-    return categoryUrl;
+    return this.getSections();
   }
 
-  async getSubcategoryUrl(categoryUrl: string): Promise<string> {
+  async getSubcategories(categoryUrl: string): Promise<ParsedSection[]> {
     const page = this.browserService.getPage();
 
-    await page.goto(categoryUrl, { waitUntil: 'domcontentloaded' });
-
-    const selector = 'a.ttl[href="/catalog/Lyustry_ILLUMICO/"]';
-
-    await page.waitForSelector(selector);
-
-    const subCategoryUrl = await page.$eval(
-      selector,
-      (element) => element.href,
-    );
-
-    return subCategoryUrl;
-  }
-
-  async getProductUrls(subcategoryUrl: string): Promise<string[]> {
-    const page = this.browserService.getPage();
-
-    await page.goto(subcategoryUrl, {
-      waitUntil: 'domcontentloaded',
-    });
-
-    const selector = 'a.nohyphenate[href]';
-
-    await page.waitForSelector(selector);
-
-    return page.$$eval(selector, (elements) =>
-      elements.map((element) => element.href),
-    );
-  }
-
-  async getProductData(productUrl: string): Promise<ParseResult> {
-    const page = this.browserService.getPage();
-
-    const titleSelector = 'h1';
-    const priceSelector = 'ins.nx-price.nx-price-nologin';
-    const paramsSelector = 'tr.zag';
-
-    const response = await page.goto(productUrl, {
+    const response = await page.goto(categoryUrl, {
       waitUntil: 'domcontentloaded',
     });
 
     if (!response || !response.ok()) {
       throw new Error(
-        `Не удалось загрузить ${productUrl}: HTTP ${response?.status() ?? 'нет ответа'}`,
+        `Не удалось загрузить ${categoryUrl}: HTTP ${response?.status() ?? 'нет ответа'}`,
       );
     }
 
-    const selector = '.prw-panel a.nx-fancybox[href]';
+    await page.waitForSelector('main .sneha-catalog-inner');
 
-    await page.waitForSelector(selector);
+    return this.getSections();
+  }
 
-    const imageUrls = await page.$$eval(selector, (elements) => [
-      ...new Set(elements.map((element) => element.href)),
-    ]);
+  private async getSections(): Promise<ParsedSection[]> {
+    const page = this.browserService.getPage();
+    const sections = await page.$$eval(
+      'main .sneha-catalog-section a.ttl[href^="/catalog/"]',
+      (elements) =>
+        elements.map((element) => {
+          const image = element
+            .closest('.element')
+            ?.querySelector<HTMLImageElement>('figure.prw-block img');
+          const imageSrc =
+            image?.getAttribute('data-src') || image?.getAttribute('src');
 
-    await page.waitForSelector(titleSelector);
+          return {
+            name: (element.textContent ?? '').trim(),
+            url: element.href,
+            imageUrl: imageSrc
+              ? new URL(imageSrc, document.baseURI).href
+              : null,
+          };
+        }),
+    );
+    const currentUrl = new URL(page.url());
+    const uniqueSections = new Map<string, ParsedSection>();
 
-    const title = await page.$eval(titleSelector, (element) => {
-      const text = element.textContent ?? '';
-      return text;
-    });
+    for (const section of sections) {
+      const target = new URL(section.url);
+      if (
+        target.origin !== currentUrl.origin ||
+        target.pathname === currentUrl.pathname ||
+        target.pathname === '/catalog/'
+      )
+        continue;
 
-    await page.waitForSelector(priceSelector);
+      if (!section.name) {
+        throw new Error(`У раздела отсутствует название: ${section.url}`);
+      }
+      uniqueSections.set(section.url, section);
+    }
 
-    const price = await page.$eval(priceSelector, (element) => {
-      const text = element.textContent ?? '';
-      return Number(text.replace(/\D/g, ''));
-    });
+    return [...uniqueSections.values()];
+  }
 
-    await page.waitForSelector(paramsSelector);
+  async getProductUrls(subcategoryUrl: string): Promise<string[]> {
+    const page = this.browserService.getPage();
+    const productUrls = new Set<string>();
+    const visitedPages = new Set<string>();
+    let nextPageUrl: string | null = new URL(subcategoryUrl).href;
 
-    const dimensions = await page.$$eval('tr', (rows) => {
-      const keys: Record<string, string> = {
-        'Высота изделия, мм': 'height',
-        'Ширина изделия, мм': 'width',
-        'Длина изделия, мм': 'length',
-        'Диаметр изделия, мм': 'diameter',
-        Бренд: 'brand',
-        'Количество ламп': 'lampCount',
-        'Максимальная мощность лампы, Вт': 'maxLampPowerW',
-        'Материал плафона': 'lampshadeMaterial',
-        'Напряжение, В': 'voltageV',
-        'Цвет каркаса': 'frameColor',
-        'Цвет плафона': 'lampshadeColor',
-        'Цоколь лампы': 'lampBase',
-        'Площадь освещения, кв.м.': 'lightingAreaSqM',
-        'Способ монтажа': 'mountingMethod',
-        'Материал каркаса': 'frameMaterial',
-        'Форма рассеивателя': 'diffuserShape',
-        Фасовка: 'packaging',
-        'Упаковка, высота, см': 'packageHeightCm',
-        'Упаковка, ширина, см': 'packageWidthCm',
-        'Упаковка, длина, см': 'packageLengthCm',
-        'Упаковка, вес, кг': 'packageWeightKg',
-        'Упаковка, объем, куб.м': 'packageVolumeCubM',
-        'Количество в упаковке': 'quantityPerPackage',
-      };
-
-      const result: Record<string, string> = {};
-
-      for (const row of rows) {
-        const name = row.querySelector('th')?.textContent?.trim();
-        const value = row.querySelector('td')?.textContent?.trim();
-        const key = name ? keys[name] : undefined;
-
-        if (key && value) {
-          result[key] = value;
-        }
+    while (nextPageUrl) {
+      if (visitedPages.has(nextPageUrl)) {
+        throw new Error(`Обнаружен цикл пагинации: ${nextPageUrl}`);
       }
 
-      return result;
-    });
+      visitedPages.add(nextPageUrl);
 
-    return {
-      imageUrls,
-      title,
-      price,
-      height: Number(dimensions.height),
-      width: Number(dimensions.width),
-      length: Number(dimensions.length),
-      diameter: Number(dimensions.diameter),
-      brand: dimensions.brand,
-      lampCount: Number(dimensions.lampCount),
-      maxLampPowerW: Number(dimensions.maxLampPowerW),
-      lampshadeMaterial: dimensions.lampshadeMaterial,
-      voltageV: Number(dimensions.voltageV),
-      frameColor: dimensions.frameColor,
-      lampshadeColor: dimensions.lampshadeColor,
-      lampBase: dimensions.lampBase,
-      lightingAreaSqM: dimensions.lightingAreaSqM,
-      mountingMethod: dimensions.mountingMethod,
-      frameMaterial: dimensions.frameMaterial,
-      diffuserShape: dimensions.diffuserShape,
-      packaging: dimensions.packaging,
-      packageHeightCm: Number(dimensions.packageHeightCm),
-      packageWidthCm: Number(dimensions.packageWidthCm),
-      packageLengthCm: Number(dimensions.packageLengthCm),
-      packageWeightKg: Number(dimensions.packageWeightKg),
-      packageVolumeCubM: Number(dimensions.packageVolumeCubM),
-      quantityPerPackage: Number(dimensions.quantityPerPackage),
-    };
+      const response = await page.goto(nextPageUrl, {
+        waitUntil: 'domcontentloaded',
+      });
+
+      if (!response || !response.ok()) {
+        throw new Error(
+          `Не удалось загрузить ${nextPageUrl}: HTTP ${response?.status() ?? 'нет ответа'}`,
+        );
+      }
+
+      const containerSelector =
+        'main .sneha-catalog:not(.sneha-catalog-section) .sneha-catalog-inner';
+      const selector = `${containerSelector} a.nohyphenate[href]`;
+
+      try {
+        await page.waitForSelector(containerSelector);
+      } catch (error: unknown) {
+        if (!(error instanceof TimeoutError)) {
+          throw error;
+        }
+
+        const title = await page.title();
+        const sectionLinks = await page.$$eval(
+          'a.ttl[href^="/catalog/"]',
+          (elements) => [...new Set(elements.map((element) => element.href))],
+        );
+
+        throw new Error(
+          `Не найден блок каталога ${containerSelector}. ` +
+            `Подкатегория: ${subcategoryUrl}. ` +
+            `Запрошенная страница: ${nextPageUrl}. ` +
+            `Открытая страница: ${page.url()}. Заголовок: ${title}. ` +
+            `Ссылки на разделы: ${JSON.stringify(sectionLinks)}`,
+          { cause: error },
+        );
+      }
+
+      const urls = await page.$$eval(selector, (elements) =>
+        elements.map((element) => element.href),
+      );
+
+      if (urls.length === 0) {
+        const isEmpty = await page.$eval(
+          containerSelector,
+          (container) =>
+            container.children.length === 0 &&
+            (container.textContent ?? '').trim() === '',
+        );
+        const hasNextPage = await page.$('a.modern-page-next[href]');
+
+        if (!isEmpty || hasNextPage) {
+          throw new Error(
+            `В каталоге нет ссылок на товары, но страница не пуста или содержит следующую страницу: ${page.url()}`,
+          );
+        }
+
+        this.logger.log(
+          `Пустая страница каталога, обход завершён: ${page.url()}`,
+        );
+        break;
+      }
+
+      for (const url of urls) {
+        productUrls.add(url);
+      }
+
+      nextPageUrl = await page.$eval('body', (body) => {
+        const next = body.querySelector<HTMLAnchorElement>(
+          'a.modern-page-next[href]',
+        );
+
+        return next?.href ?? null;
+      });
+    }
+
+    return [...productUrls];
   }
 }

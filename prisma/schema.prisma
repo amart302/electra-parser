@@ -14,6 +14,7 @@ model Category {
   imageUrl String? @db.VarChar(2048)
 
   subcategories Subcategory[]
+  products      Product[]
 
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   updatedAt DateTime @updatedAt @db.Timestamptz(3)
@@ -47,18 +48,28 @@ model Product {
   price Decimal? @db.Decimal(12, 2)
   brand String?  @db.VarChar(255)
 
-  heightMm   Decimal? @db.Decimal(10, 2)
-  widthMm    Decimal? @db.Decimal(10, 2)
-  lengthMm   Decimal? @db.Decimal(10, 2)
-  diameterMm Decimal? @db.Decimal(10, 2)
+  heightMm       Decimal? @db.Decimal(10, 2)
+  widthMm        Decimal? @db.Decimal(10, 2)
+  lengthMm       Decimal? @db.Decimal(10, 2)
+  diameterMm     Decimal? @db.Decimal(10, 2)
+  baseDiameterMm Decimal? @db.Decimal(10, 2)
 
-  lampCount     Int?
-  maxLampPowerW Decimal? @db.Decimal(10, 2)
-  voltageV      String?  @db.VarChar(100)
-  lampBase      String?  @db.VarChar(100)
+  lampCount        String? @db.VarChar(255)
+  maxLampPowerW    String? @db.VarChar(255)
+  maxProductPowerW String? @db.VarChar(255)
+  voltageV         String? @db.VarChar(100)
+  lampBase         String? @db.VarChar(100)
 
-  // Исходное значение, например «до 30».
   lightingArea String? @db.VarChar(100)
+
+  lightingMode       String?  @db.VarChar(100)
+  maxConnectedUnits  String?  @db.VarChar(100)
+  color              String?  @db.VarChar(255)
+  wireColor          String?  @db.VarChar(255)
+  moistureProtection String?  @db.VarChar(100)
+  hasController      Boolean?
+  powerConsumptionW  String?  @db.VarChar(255)
+  isFrostResistant   Boolean?
 
   lampshadeMaterial String? @db.VarChar(255)
   frameMaterial     String? @db.VarChar(255)
@@ -75,12 +86,16 @@ model Product {
   packageVolumeM3    Decimal? @db.Decimal(12, 6)
   quantityPerPackage Int?
 
-  subcategoryId Int
-  subcategory   Subcategory @relation(fields: [subcategoryId], references: [id], onDelete: Restrict)
+  categoryId Int
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+
+  subcategoryId Int?
+  subcategory   Subcategory? @relation(fields: [subcategoryId], references: [id], onDelete: Restrict)
 
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   updatedAt DateTime @updatedAt @db.Timestamptz(3)
 
+  @@index([categoryId])
   @@index([subcategoryId])
   @@map("products")
 }

@@ -1,179 +1,120 @@
-# 🧩 Nest Template
+# Парсер каталога
 
-Шаблон API на NestJS с PostgreSQL, Prisma, проверкой переменных окружения, Swagger и единым форматом ответов.
+Одноразовый загрузчик на NestJS с Puppeteer и Prisma. PostgreSQL запускается в Docker, парсер — отдельным процессом Node.js на той же машине. HTTP-сервер и Swagger не используются.
 
-## Что входит в шаблон
+Сейчас парсер выводит данные товаров в консоль. Полный обход каталога и сохранение в PostgreSQL ещё нужно реализовать.
 
-- **Основа:** NestJS и TypeScript.
-- **База данных:** PostgreSQL, Prisma Client и адаптер `@prisma/adapter-pg`.
-- **Docker:** Dockerfile для сборки API на Node.js 26 и Docker Compose для запуска PostgreSQL 17, применения миграций и запуска API.
-- **HTTP API:** настроенный `ValidationPipe`, CORS, Swagger, общий фильтр ошибок и перехватчик ответов.
-- **Конфигурация:** `@nestjs/config` и проверка переменных окружения через Joi.
-- **Стиль кода:** ESLint, Prettier, Husky и `lint-staged`.
+## Подготовка
 
-## 🚀 Быстрый старт
-
-Для локальной разработки нужны Node.js 26.x и npm 11.x согласно `package.json`. Dockerfile и CI также используют Node.js 26. В этом варианте NestJS работает локально с перезапуском при изменении кода, а PostgreSQL — в Docker. Для базы нужны Docker и Docker Compose; вариант без Docker описан ниже.
+Нужны Node.js 26.x, npm 11.x, Docker и Docker Compose.
 
 ```bash
 cp .env.example .env
 npm ci
+```
+
+Отредактируйте `.env`: задайте `TARGET_URL`, пользователя, пароль и название базы. Значения в `DATABASE_URL` должны соответствовать `DATABASE_USER`, `DATABASE_PASSWORD` и `DATABASE_NAME`. Адрес базы для парсера на той же машине — `localhost:5432`.
+
+При установке зависимостей генерируется Prisma Client. Puppeteer также требует установленного браузера и системных библиотек: на Linux подготовьте их перед запуском парсера.
+
+## PostgreSQL в Docker
+
+Compose запускает только PostgreSQL 17:
+
+```bash
 docker compose up -d --wait postgres
+docker compose ps
+docker compose logs -f postgres
 ```
 
-При установке зависимостей `postinstall` автоматически генерирует Prisma Client. Проверьте значения в `.env`: пользователь, пароль и название базы в `DATABASE_URL` должны совпадать с `DATABASE_USER`, `DATABASE_PASSWORD` и `DATABASE_NAME`. Для локального API адрес базы — `localhost:5432`. Остальные переменные описаны ниже.
+Порт доступен только на `127.0.0.1:5432`. Данные сохраняются в именованном томе `postgres_data`. Не меняйте имя Compose-проекта при повторном запуске: от него зависит имя тома.
 
-Если в проекте есть миграции, примените их к базе:
+Пользователь, пароль и база создаются при первой инициализации пустого тома. Изменение `.env` не меняет учётные данные существующей базы.
+
+Остановить контейнер, сохранив данные:
 
 ```bash
-npm run prisma:migrate:deploy
+docker compose stop postgres
 ```
 
-Запустите приложение:
+Удалить контейнер и сеть, сохранив том с данными:
 
 ```bash
-npm run start:dev
-```
-
-По умолчанию API доступен на `http://localhost:3001`, документация Swagger — на `http://localhost:3001/docs`.
-
-### Запуск без Docker
-
-Установите PostgreSQL отдельно, создайте пользователя и базу. Скопируйте `.env.example` в `.env` и укажите подключение к этой базе в `DATABASE_URL`.
-
-```bash
-npm ci
-# Если в проекте есть миграции
-npm run prisma:migrate:deploy
-npm run start:dev
-```
-
-В этом режиме команды Docker не нужны. Приложение использует `DATABASE_URL`; переменные `DATABASE_USER`, `DATABASE_PASSWORD` и `DATABASE_NAME` нужны для настройки сервисов Compose.
-
-## Запуск через Docker
-
-Для запуска API и PostgreSQL в контейнерах нужны Docker и Docker Compose. Если `.env` ещё не создан, скопируйте `.env.example` в `.env` и настройте значения.
-
-```bash
-docker compose up -d --build
-```
-
-Compose собирает образы по `Dockerfile` и запускает сервисы в следующем порядке:
-
-1. `postgres` запускается и проходит `healthcheck`.
-2. `migrate` выполняет `npm run prisma:migrate:deploy` и завершается.
-3. `api` запускается после успешного завершения `migrate`. Ошибка миграций блокирует запуск нового контейнера API.
-
-API доступен на `http://localhost:3001`, Swagger — на `http://localhost:3001/docs`. Локальный API на этом же порту перед запуском контейнера нужно остановить.
-
-В контейнер API передаются переменные из `.env`, но `DATABASE_URL` переопределяется в Compose: адрес базы внутри сети контейнеров — `postgres:5432`. В самом `.env` оставьте `localhost:5432` для локальной разработки. Текущая публикация портов рассчитана на `PORT=3001`; при его изменении обновите также `ports` сервиса `api`.
-
-Dockerfile отдельно собирает NestJS и генерирует Prisma Client, затем переносит `dist` в финальный образ с production-зависимостями. Приложение запускается от пользователя `node`. `.dockerignore` исключает из контекста сборки локальные зависимости, готовую сборку и `.env`.
-
-```bash
-# Состояние сервисов, включая завершившийся migrate
-docker compose ps -a
-
-# Результат применения миграций
-docker compose logs migrate
-
-# Логи API
-docker compose logs -f api
-
-# Остановка контейнеров с сохранением базы
 docker compose down
 ```
 
-Данные PostgreSQL сохраняются в томе `postgres_data`. Команда `docker compose down -v` удаляет этот том вместе с данными базы. Переменные `POSTGRES_*` настраивают базу при первой инициализации пустого тома: изменение `.env` не меняет существующих пользователей и пароли.
+Не используйте `docker compose down -v`, если данные нужно сохранить: эта команда удаляет том базы.
 
-После изменения кода повторите `docker compose up -d --build`: автоматический перезапуск при редактировании исходников в контейнере не настроен. Для локальной разработки используйте запуск только базы из раздела «Быстрый старт» и `npm run start:dev`. Если контейнер API уже работает, сначала остановите его командой `docker compose stop api`.
+## Миграции
 
-Сервис `migrate` использует этап `build` из Dockerfile, где установлен Prisma CLI и скопирована схема вместе с файлами миграций, если они созданы. Финальный образ API не содержит Prisma CLI. Статус `Exited (0)` у `migrate` означает успешное завершение, а не сбой.
+Миграции выполняются через Node.js на машине с парсером. Compose не применяет их автоматически.
 
-## Миграции базы данных
-
-В исходном шаблоне пока нет моделей и папки `prisma/migrations`. После добавления моделей в `prisma/schema.prisma` создайте миграцию локально, подключившись к базе разработки:
+В проекте уже есть модели, но пока нет первой миграции. Создайте её на базе разработки и сохраните полученные файлы `prisma/migrations` в Git:
 
 ```bash
-npm run prisma:migrate -- --name create_users
+npm run prisma:migrate -- --name init_catalog
 npm run prisma:generate
 ```
 
-Замените `create_users` на имя вашего изменения. Сохраните схему и созданные файлы в `prisma/migrations` в Git. `prisma:generate` обновляет Prisma Client, но сама по себе эта команда не создаёт таблицы.
+На сервере применяйте готовые миграции:
 
-Для применения готовых миграций при локальном запуске используйте `npm run prisma:migrate:deploy`. При запуске всего проекта через `docker compose up -d --build` эту команду выполняет сервис `migrate`. Она применяет ещё не применённые миграции, но не создаёт новые. `db push` автоматически не выполняется.
-
-## Переменные окружения
-
-Пример значений находится в `.env.example`. При запуске приложение проверяет обязательные переменные и завершает работу с ошибкой, если они некорректны.
-
-| Переменная     | Назначение                           |
-| -------------- | ------------------------------------ |
-| `PORT`         | Порт API; по умолчанию `3001`        |
-| `DATABASE_URL` | Строка подключения к PostgreSQL      |
-| `DATABASE_USER` | Пользователь PostgreSQL, создаваемый через Compose |
-| `DATABASE_PASSWORD` | Пароль пользователя PostgreSQL для Compose |
-| `DATABASE_NAME` | Название базы, создаваемой через Compose |
-| `FRONTEND_URL` | Разрешённый адрес фронтенда для CORS |
-
-## Ошибки валидации
-
-Обычные HTTP-ошибки возвращают `message` строкой. Если валидация находит одну или несколько ошибок, `message` содержит массив строк.
-
-## Структура проекта
-
-```text
-prisma/
-├── schema.prisma        # схема базы данных
-└── migrations/          # миграции после их создания
-src/
-├── common/
-│   ├── config/          # проверка окружения и настройки Swagger
-│   ├── filters/         # общий фильтр ошибок
-│   └── interceptors/    # общий формат успешных ответов
-├── prisma/              # модуль и сервис доступа к базе данных
-├── app.controller.ts    # корневой контроллер
-├── app.module.ts        # корневой модуль
-├── app.service.ts       # корневой сервис
-└── main.ts              # запуск приложения и глобальные настройки HTTP
+```bash
+npm run prisma:migrate:deploy
 ```
 
-Новые предметные области удобно оформлять отдельными модулями внутри `src`. DTO и связанные с модулем сервисы размещайте рядом с его контроллером. Код, используемый несколькими модулями и не относящийся к конкретной предметной области, выносите в `src/common`.
+Генерация Prisma Client сама по себе не создаёт таблицы.
 
-## Команды
+## Запуск парсера
 
-| Команда                                        | Назначение                                           |
-| ---------------------------------------------- | ---------------------------------------------------- |
-| `npm run start`                                | Запуск приложения                                    |
-| `npm run start:dev`                            | Запуск с перезапуском при изменениях                 |
-| `npm run build`                                | Сборка в `dist`                                      |
-| `npm run start:prod`                           | Запуск ранее собранного приложения                   |
-| `npm run format`                               | Исправление форматирования TypeScript-файлов в `src` |
-| `npm run lint`                                 | Проверка TypeScript-файлов в `src` через ESLint      |
-| `npm run prisma:generate`                      | Генерация Prisma Client                              |
-| `npm run prisma:migrate -- --name <имя_миграции>` | Создание и применение миграции в разработке          |
-| `npm run prisma:migrate:deploy`                | Применение существующих миграций                     |
+Для разработки:
 
-Prisma Client создаётся в `src/generated/prisma` и не хранится в Git. После изменения `prisma/schema.prisma` сгенерируйте его заново командой `npm run prisma:generate`.
+```bash
+npm run start:dev
+```
 
-Для запуска собранного приложения:
+Для одноразового запуска на сервере после подготовки браузера и применения миграций:
 
 ```bash
 npm run build
 npm run start:prod
 ```
 
-## Проверки перед коммитом
+При работе через SSH запускайте длительную загрузку внутри `tmux`, чтобы отключение терминала не остановило процесс. После завершения парсера PostgreSQL продолжает работать независимо от него.
 
-При `npm ci` скрипт `prepare` подключает Husky. Во время `git commit` hook запускает `lint-staged`: Prettier форматирует подготовленные к коммиту `.ts`-файлы из `src`, затем ESLint проверяет их. Исправленное форматирование включается в коммит; ошибка ESLint останавливает коммит.
+## Переменные окружения
 
-Для ручной проверки всего исходного кода без изменения файлов:
+| Переменная | Назначение |
+| --- | --- |
+| `DATABASE_URL` | Подключение Prisma к PostgreSQL |
+| `DATABASE_USER` | Пользователь при создании базы в Docker |
+| `DATABASE_PASSWORD` | Пароль пользователя при создании базы в Docker |
+| `DATABASE_NAME` | Имя базы при создании в Docker |
+| `TARGET_URL` | Начальная страница для обхода |
+
+Файл `.env` не хранится в Git. Если пароль содержит специальные символы, кодируйте их в части пароля внутри `DATABASE_URL` как URL-компонент; в `DATABASE_PASSWORD` оставляйте исходное значение.
+
+## Структура
+
+```text
+prisma/schema.prisma              # модели каталога
+src/browser/browser.service.ts    # жизненный цикл Puppeteer
+src/parser/catalog.service.ts     # извлечение данных сайта
+src/parser/parser.service.ts      # управление обходом
+src/prisma/                       # подключение к PostgreSQL
+src/common/config/                # проверка окружения
+src/app.module.ts                 # регистрация зависимостей
+src/main.ts                       # одноразовый запуск и завершение
+```
+
+## Проверки
 
 ```bash
 npm run lint
-npx prettier --check "src/**/*.ts"
-npx tsc -p tsconfig.json --noEmit --incremental false
+npm run typecheck
+npm run build
 ```
+
+Prisma Client генерируется в `src/generated/prisma` и не хранится в Git. Перед коммитом Husky запускает `lint-staged` для подготовленных TypeScript-файлов.
 
 ## Стиль кода
 
@@ -192,7 +133,7 @@ Alias `@/` указывает на каталог `src/` и настроен ч�
 import { PrismaService } from './prisma.service';
 
 // Другие части проекта
-import type { ServiceMessageResponse } from '@/common/types/service-response.types';
+import { PrismaService } from '@/prisma/prisma.service';
 import { PrismaClient } from '@/generated/prisma/client';
 ```
 

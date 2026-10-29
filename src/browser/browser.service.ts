@@ -20,7 +20,7 @@ export class BrowserService implements OnModuleInit, OnModuleDestroy {
 
   private async launchBrowser(): Promise<void> {
     this.browser = await puppeteer.launch({
-      headless: false,
+      headless: true,
     });
 
     try {
@@ -36,7 +36,7 @@ export class BrowserService implements OnModuleInit, OnModuleDestroy {
 
   getPage(): Page {
     if (!this.page || this.page.isClosed()) {
-      throw new Error('Puppeteer page is not initialized or has been closed');
+      throw new Error('Страница Puppeteer не инициализирована или уже закрыта');
     }
 
     return this.page;
