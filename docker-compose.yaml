@@ -1,35 +1,4 @@
-x-database-url: &database-url >-
-  postgresql://${DATABASE_USER:?Укажите DATABASE_USER}:${DATABASE_PASSWORD:?Укажите DATABASE_PASSWORD}@postgres:5432/${DATABASE_NAME:?Укажите DATABASE_NAME}
-
 services:
-  parser:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    restart: no
-    ports:
-      - '${PORT:-3001}:${PORT:-3001}'
-    env_file:
-      - .env
-    environment:
-      DATABASE_URL: *database-url
-    depends_on:
-      migrate:
-        condition: service_completed_successfully
-
-  migrate:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: build
-    environment:
-      DATABASE_URL: *database-url
-    command: ['npm', 'run', 'prisma:migrate:deploy']
-    restart: no
-    depends_on:
-      postgres:
-        condition: service_healthy
-
   postgres:
     image: postgres:17
     restart: unless-stopped
