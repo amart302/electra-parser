@@ -48,7 +48,7 @@ model Product {
   sourceUrl String   @unique @db.VarChar(2048)
   imageUrls String[] @default([])
 
-  price Decimal? @db.Decimal(12, 2)
+  price Int?
   brand String?  @db.VarChar(255)
 
   heightMm       Decimal? @db.Decimal(10, 2)
