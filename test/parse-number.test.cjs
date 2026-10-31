@@ -27,6 +27,18 @@ test('keeps missing values null', () => {
   }
 });
 
+test('accepts an upper bound only when explicitly enabled', () => {
+  for (const [input, expected] of [
+    ['до 30', 30], [' До 30 м² ', 30],
+    ['до\u00a030,5 кв. м.', 30.5], ['30', 30],
+  ]) assert.equal(parseNumber(input, 'm2', { allowUpperBound: true }), expected);
+
+  assert.throws(() => parseNumber('до 30', 'm2'));
+  for (const input of ['до 20–30', 'от 30', 'до 2×30', 'до ', 'до 30 Вт']) {
+    assert.throws(() => parseNumber(input, 'm2', { allowUpperBound: true }));
+  }
+});
+
 test('rejects ranges, expressions, unexpected units and non-finite values', () => {
   for (const [input, unit] of [
     ['220–240 В', 'V'], ['220-240 В', 'V'], ['2×60 Вт', 'W'],

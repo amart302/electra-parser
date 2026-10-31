@@ -108,7 +108,13 @@ export class ProductParserService {
       frameColor: parseText(dimensions['Цвет каркаса']),
       lampshadeColor: parseText(dimensions['Цвет плафона']),
       lampBase: parseText(dimensions['Цоколь лампы']),
-      lightingAreaM2: parseNumber(dimensions['Площадь освещения, кв.м.'], 'm2'),
+      lightingAreaM2: parseNumber(
+        dimensions['Площадь освещения, кв.м.'],
+        'm2',
+        {
+          allowUpperBound: true,
+        },
+      ),
       mountingMethod: parseText(dimensions['Способ монтажа']),
       frameMaterial: parseText(dimensions['Материал каркаса']),
       diffuserShape: parseText(dimensions['Форма рассеивателя']),

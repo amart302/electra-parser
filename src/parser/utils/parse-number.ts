@@ -1,6 +1,7 @@
 export function parseNumber(
   value: string | undefined | null,
   unit: 'W' | 'V' | 'm2' | 'count' = 'W',
+  options: { allowUpperBound?: boolean } = {},
 ): number | null {
   if (value == null || !value.trim()) return null;
 
@@ -11,7 +12,12 @@ export function parseNumber(
     count: /(?:шт\.?)$/i,
   };
 
-  const normalized = value
+  // Only fields representing a limit may interpret «до N» as the upper bound N.
+  const text = options.allowUpperBound
+    ? value.trim().replace(/^до\s+(?=\d)/i, '')
+    : value;
+
+  const normalized = text
     .trim()
     .replace(/[\s\u00a0\u202f]/g, '')
     .replace(units[unit], '')
