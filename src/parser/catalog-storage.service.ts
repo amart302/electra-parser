@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '@/prisma/prisma.service';
 
 import type { ParsedSection, ParseResult } from './types/parsed-data.types';
+import { makeSlug } from './utils/make-slug';
 
 @Injectable()
 export class CatalogStorageService {
@@ -12,11 +13,13 @@ export class CatalogStorageService {
     const name = this.normalizeName(section.name);
     const data = { name, imageUrl: section.imageUrl };
 
-    return this.prisma.category.upsert({
-      where: { name },
-      create: data,
-      update: data,
-    });
+    return this.withUniqueSlug(name, (slug) =>
+      this.prisma.category.upsert({
+        where: { name },
+        create: { ...data, slug },
+        update: data,
+      }),
+    );
   }
 
   async upsertSubcategory(
@@ -26,11 +29,13 @@ export class CatalogStorageService {
     const name = this.normalizeName(section.name);
     const data = { name, imageUrl: section.imageUrl, categoryId };
 
-    return this.prisma.subcategory.upsert({
-      where: { categoryId_name: { categoryId, name } },
-      create: data,
-      update: data,
-    });
+    return this.withUniqueSlug(name, (slug) =>
+      this.prisma.subcategory.upsert({
+        where: { categoryId_name: { categoryId, name } },
+        create: { ...data, slug },
+        update: data,
+      }),
+    );
   }
 
   async upsertProduct(
@@ -70,6 +75,29 @@ export class CatalogStorageService {
       create: data,
       update: data,
     });
+  }
+
+  private async withUniqueSlug<T>(
+    name: string,
+    save: (slug: string) => Promise<T>,
+  ): Promise<T> {
+    const base = makeSlug(name);
+    for (let suffix = 1; ; suffix++) {
+      const slug = suffix === 1 ? base : `${base}-${suffix}`;
+      try {
+        return await save(slug);
+      } catch (error) {
+        // A concurrent insert can also claim a slug; retry using the DB constraint.
+        if (
+          typeof error !== 'object' ||
+          error === null ||
+          !('code' in error) ||
+          error.code !== 'P2002'
+        ) {
+          throw error;
+        }
+      }
+    }
   }
 
   private normalizeName(value: string): string {

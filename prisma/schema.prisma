@@ -11,6 +11,7 @@ datasource db {
 model Category {
   id       Int     @id @default(autoincrement())
   name     String  @unique @db.VarChar(255)
+  slug     String  @unique
   imageUrl String? @db.VarChar(2048)
 
   subcategories Subcategory[]
@@ -25,6 +26,7 @@ model Category {
 model Subcategory {
   id       Int     @id @default(autoincrement())
   name     String  @db.VarChar(255)
+  slug     String
   imageUrl String? @db.VarChar(2048)
 
   categoryId Int
@@ -36,6 +38,7 @@ model Subcategory {
   updatedAt DateTime @updatedAt @db.Timestamptz(3)
 
   @@unique([categoryId, name])
+  @@unique([categoryId, slug])
   @@map("subcategories")
 }
 
@@ -54,21 +57,21 @@ model Product {
   diameterMm     Decimal? @db.Decimal(10, 2)
   baseDiameterMm Decimal? @db.Decimal(10, 2)
 
-  lampCount        String? @db.VarChar(255)
-  maxLampPowerW    String? @db.VarChar(255)
-  maxProductPowerW String? @db.VarChar(255)
-  voltageV         String? @db.VarChar(100)
-  lampBase         String? @db.VarChar(100)
+  lampCount        Int?
+  maxLampPowerW    Decimal? @db.Decimal(12, 3)
+  maxProductPowerW Decimal? @db.Decimal(12, 3)
+  voltageV         Decimal? @db.Decimal(12, 3)
+  lampBase         String?  @db.VarChar(100)
 
-  lightingArea String? @db.VarChar(100)
+  lightingAreaM2 Decimal? @db.Decimal(12, 3)
 
   lightingMode       String?  @db.VarChar(100)
-  maxConnectedUnits  String?  @db.VarChar(100)
+  maxConnectedUnits  Int?
   color              String?  @db.VarChar(255)
   wireColor          String?  @db.VarChar(255)
   moistureProtection String?  @db.VarChar(100)
   hasController      Boolean?
-  powerConsumptionW  String?  @db.VarChar(255)
+  powerConsumptionW  Decimal? @db.Decimal(12, 3)
   isFrostResistant   Boolean?
 
   lampshadeMaterial String? @db.VarChar(255)

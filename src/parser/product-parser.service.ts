@@ -15,7 +15,6 @@ export class ProductParserService {
     const page = this.browserService.getPage();
 
     const titleSelector = 'h1';
-    const priceSelector = 'ins.nx-price.nx-price-nologin';
     const paramsSelector = 'tr.zag';
 
     const response = await page.goto(productUrl, {
@@ -34,30 +33,6 @@ export class ProductParserService {
       const text = element.textContent ?? '';
       return text;
     });
-
-    await page.waitForSelector(
-      `${priceSelector}, .nx-basket-byer a.show-price`,
-    );
-
-    const priceText = await page.$$eval(
-      priceSelector,
-      (elements) => elements[0]?.textContent?.trim() ?? null,
-    );
-    const price =
-      priceText === null
-        ? null
-        : Number(
-            priceText
-              .replace(/[\s\u00a0\u202f]/g, '')
-              .replace(/(?:руб\.?|[₽рp]\.?)$/i, '')
-              .replace(',', '.'),
-          );
-
-    if (price !== null && (priceText === '' || !Number.isFinite(price))) {
-      throw new Error(
-        `Не удалось распознать цену «${priceText}»: ${productUrl}`,
-      );
-    }
 
     await page.waitForSelector(paramsSelector);
 
@@ -100,7 +75,7 @@ export class ProductParserService {
       );
     };
     const parseInteger = (value: string | undefined): number | null => {
-      const result = parseNumber(value);
+      const result = parseNumber(value, 'count');
       if (result !== null && !Number.isInteger(result)) {
         throw new Error(
           `Ожидалось целое число, получено «${value}»: ${productUrl}`,
@@ -113,24 +88,27 @@ export class ProductParserService {
       sourceUrl: productUrl,
       imageUrls,
       name: title.trim(),
-      price,
       heightMm: parseNumber(dimensions['Высота изделия, мм']),
       widthMm: parseNumber(dimensions['Ширина изделия, мм']),
       lengthMm: parseNumber(dimensions['Длина изделия, мм']),
       diameterMm: parseNumber(dimensions['Диаметр изделия, мм']),
       baseDiameterMm: parseNumber(dimensions['Диаметр основания, мм']),
       brand: parseText(dimensions['Бренд']),
-      lampCount: parseText(dimensions['Количество ламп']),
-      maxLampPowerW: parseText(dimensions['Максимальная мощность лампы, Вт']),
-      maxProductPowerW: parseText(
+      lampCount: parseInteger(dimensions['Количество ламп']),
+      maxLampPowerW: parseNumber(
+        dimensions['Максимальная мощность лампы, Вт'],
+        'W',
+      ),
+      maxProductPowerW: parseNumber(
         dimensions['Максимальная мощность изделия, Вт'],
+        'W',
       ),
       lampshadeMaterial: parseText(dimensions['Материал плафона']),
-      voltageV: parseText(dimensions['Напряжение, В']),
+      voltageV: parseNumber(dimensions['Напряжение, В'], 'V'),
       frameColor: parseText(dimensions['Цвет каркаса']),
       lampshadeColor: parseText(dimensions['Цвет плафона']),
       lampBase: parseText(dimensions['Цоколь лампы']),
-      lightingArea: parseText(dimensions['Площадь освещения, кв.м.']),
+      lightingAreaM2: parseNumber(dimensions['Площадь освещения, кв.м.'], 'm2'),
       mountingMethod: parseText(dimensions['Способ монтажа']),
       frameMaterial: parseText(dimensions['Материал каркаса']),
       diffuserShape: parseText(dimensions['Форма рассеивателя']),
@@ -142,14 +120,17 @@ export class ProductParserService {
       packageVolumeM3: parseNumber(dimensions['Упаковка, объем, куб.м']),
       quantityPerPackage: parseInteger(dimensions['Количество в упаковке']),
       lightingMode: parseText(dimensions['Режим свечения']),
-      maxConnectedUnits: parseText(
+      maxConnectedUnits: parseInteger(
         dimensions['Соединяется последовательно, шт.'],
       ),
       color: parseText(dimensions['Цвет']),
       wireColor: parseText(dimensions['Цвет провода']),
       moistureProtection: parseText(dimensions['Влагозащищенность']),
       hasController: parseBoolean(dimensions['Наличие контроллера']),
-      powerConsumptionW: parseText(dimensions['Потребляемая мощность, Вт']),
+      powerConsumptionW: parseNumber(
+        dimensions['Потребляемая мощность, Вт'],
+        'W',
+      ),
       isFrostResistant: parseBoolean(dimensions['Морозоустойчивость']),
     };
   }
