@@ -8,6 +8,12 @@ datasource db {
   provider = "postgresql"
 }
 
+enum AttributeType {
+  TEXT
+  NUMBER
+  BOOLEAN
+}
+
 model Category {
   id       Int     @id @default(autoincrement())
   name     String  @unique @db.VarChar(255)
@@ -49,45 +55,8 @@ model Product {
   imageUrls String[] @default([])
 
   price Int?
-  brand String?  @db.VarChar(255)
 
-  heightMm       Decimal? @db.Decimal(10, 2)
-  widthMm        Decimal? @db.Decimal(10, 2)
-  lengthMm       Decimal? @db.Decimal(10, 2)
-  diameterMm     Decimal? @db.Decimal(10, 2)
-  baseDiameterMm Decimal? @db.Decimal(10, 2)
-
-  lampCount        Int?
-  maxLampPowerW    Decimal? @db.Decimal(12, 3)
-  maxProductPowerW Decimal? @db.Decimal(12, 3)
-  voltageV         Decimal? @db.Decimal(12, 3)
-  lampBase         String?  @db.VarChar(100)
-
-  lightingAreaM2 Decimal? @db.Decimal(12, 3)
-
-  lightingMode       String?  @db.VarChar(100)
-  maxConnectedUnits  Int?
-  color              String?  @db.VarChar(255)
-  wireColor          String?  @db.VarChar(255)
-  moistureProtection String?  @db.VarChar(100)
-  hasController      Boolean?
-  powerConsumptionW  Decimal? @db.Decimal(12, 3)
-  isFrostResistant   Boolean?
-
-  lampshadeMaterial String? @db.VarChar(255)
-  frameMaterial     String? @db.VarChar(255)
-  frameColor        String? @db.VarChar(255)
-  lampshadeColor    String? @db.VarChar(255)
-  mountingMethod    String? @db.VarChar(255)
-  diffuserShape     String? @db.VarChar(255)
-
-  packaging          String?  @db.VarChar(255)
-  packageHeightCm    Decimal? @db.Decimal(10, 2)
-  packageWidthCm     Decimal? @db.Decimal(10, 2)
-  packageLengthCm    Decimal? @db.Decimal(10, 2)
-  packageWeightKg    Decimal? @db.Decimal(10, 3)
-  packageVolumeM3    Decimal? @db.Decimal(12, 6)
-  quantityPerPackage Int?
+  attributes ProductAttribute[]
 
   categoryId Int
   category   Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
@@ -101,4 +70,39 @@ model Product {
   @@index([categoryId])
   @@index([subcategoryId])
   @@map("products")
+}
+
+model Attribute {
+  id   Int           @id @default(autoincrement())
+  key  String        @unique @db.VarChar(255)
+  name String        @db.VarChar(255)
+  type AttributeType @default(TEXT)
+  unit String?       @db.VarChar(50)
+
+  products ProductAttribute[]
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  @@map("attributes")
+}
+
+model ProductAttribute {
+  productId   Int
+  attributeId Int
+
+  product   Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  attribute Attribute @relation(fields: [attributeId], references: [id], onDelete: Restrict)
+
+  textValue    String?
+  numberValue  Decimal? @db.Decimal(20, 6)
+  booleanValue Boolean?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  @@id([productId, attributeId])
+  @@index([attributeId, numberValue])
+  @@index([attributeId, booleanValue])
+  @@map("product_attributes")
 }

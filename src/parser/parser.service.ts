@@ -58,7 +58,6 @@ export class ParserService {
         );
 
         for (const productUrl of productUrls) {
-          this.logger.log(`Обрабатываю товар: ${productUrl}`);
           const productData =
             await this.productParserService.getProductData(productUrl);
 
@@ -68,7 +67,9 @@ export class ParserService {
             savedSubcategory?.id ?? null,
           );
           saved.products++;
-          this.logger.log(`Сохранён товар: ${productData.name}`);
+          if (saved.products % 100 === 0) {
+            this.logger.log(`Сохранено товаров: ${saved.products}`);
+          }
         }
       }
     }

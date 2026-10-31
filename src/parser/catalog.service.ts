@@ -12,9 +12,7 @@ export class CatalogService {
   constructor(private readonly browserService: BrowserService) {}
 
   async getCategories(url: string): Promise<ParsedSection[]> {
-    const page = this.browserService.getPage();
-
-    const response = await page.goto(url, { waitUntil: 'domcontentloaded' });
+    const { page, response } = await this.browserService.navigate(url);
 
     if (!response || !response.ok()) {
       throw new Error(
@@ -30,11 +28,7 @@ export class CatalogService {
   }
 
   async getSubcategories(categoryUrl: string): Promise<ParsedSection[]> {
-    const page = this.browserService.getPage();
-
-    const response = await page.goto(categoryUrl, {
-      waitUntil: 'domcontentloaded',
-    });
+    const { page, response } = await this.browserService.navigate(categoryUrl);
 
     if (!response || !response.ok()) {
       throw new Error(
@@ -90,7 +84,6 @@ export class CatalogService {
   }
 
   async getProductUrls(subcategoryUrl: string): Promise<string[]> {
-    const page = this.browserService.getPage();
     const productUrls = new Set<string>();
     const visitedPages = new Set<string>();
     let nextPageUrl: string | null = new URL(subcategoryUrl).href;
@@ -102,9 +95,8 @@ export class CatalogService {
 
       visitedPages.add(nextPageUrl);
 
-      const response = await page.goto(nextPageUrl, {
-        waitUntil: 'domcontentloaded',
-      });
+      const { page, response } =
+        await this.browserService.navigate(nextPageUrl);
 
       if (!response || !response.ok()) {
         throw new Error(

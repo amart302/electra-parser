@@ -3,23 +3,20 @@ import { Injectable, Logger } from '@nestjs/common';
 import { BrowserService } from '@/browser/browser.service';
 
 import type { ParseResult } from './types/parsed-data.types';
-import { parseNumber } from './utils/parse-number';
+import { parseAttributes } from './utils/parse-attributes';
 
 @Injectable()
 export class ProductParserService {
   private readonly logger = new Logger(ProductParserService.name);
+  private readonly reportedCharacteristics = new Set<string>();
 
   constructor(private readonly browserService: BrowserService) {}
 
   async getProductData(productUrl: string): Promise<ParseResult> {
-    const page = this.browserService.getPage();
-
     const titleSelector = 'h1';
     const paramsSelector = 'tr.zag';
 
-    const response = await page.goto(productUrl, {
-      waitUntil: 'domcontentloaded',
-    });
+    const { page, response } = await this.browserService.navigate(productUrl);
 
     if (!response || !response.ok()) {
       throw new Error(
@@ -63,81 +60,14 @@ export class ProductParserService {
       return result;
     });
 
-    const parseText = (value: string | undefined): string | null =>
-      value?.trim() || null;
-    const parseBoolean = (value: string | undefined): boolean | null => {
-      if (!value?.trim()) return null;
-      const normalized = value.trim().toLowerCase();
-      if (normalized === 'да') return true;
-      if (normalized === 'нет') return false;
-      throw new Error(
-        `Неизвестное логическое значение «${value}»: ${productUrl}`,
+    const attributes = parseAttributes(dimensions, (key, value) => {
+      if (this.reportedCharacteristics.has(key)) return;
+      this.reportedCharacteristics.add(key);
+      this.logger.warn(
+        `Характеристика «${key}: ${value}» сохранена как текст: ${productUrl}`,
       );
-    };
-    const parseInteger = (value: string | undefined): number | null => {
-      const result = parseNumber(value, 'count');
-      if (result !== null && !Number.isInteger(result)) {
-        throw new Error(
-          `Ожидалось целое число, получено «${value}»: ${productUrl}`,
-        );
-      }
-      return result;
-    };
+    });
 
-    return {
-      sourceUrl: productUrl,
-      imageUrls,
-      name: title.trim(),
-      heightMm: parseNumber(dimensions['Высота изделия, мм']),
-      widthMm: parseNumber(dimensions['Ширина изделия, мм']),
-      lengthMm: parseNumber(dimensions['Длина изделия, мм']),
-      diameterMm: parseNumber(dimensions['Диаметр изделия, мм']),
-      baseDiameterMm: parseNumber(dimensions['Диаметр основания, мм']),
-      brand: parseText(dimensions['Бренд']),
-      lampCount: parseInteger(dimensions['Количество ламп']),
-      maxLampPowerW: parseNumber(
-        dimensions['Максимальная мощность лампы, Вт'],
-        'W',
-      ),
-      maxProductPowerW: parseNumber(
-        dimensions['Максимальная мощность изделия, Вт'],
-        'W',
-      ),
-      lampshadeMaterial: parseText(dimensions['Материал плафона']),
-      voltageV: parseNumber(dimensions['Напряжение, В'], 'V'),
-      frameColor: parseText(dimensions['Цвет каркаса']),
-      lampshadeColor: parseText(dimensions['Цвет плафона']),
-      lampBase: parseText(dimensions['Цоколь лампы']),
-      lightingAreaM2: parseNumber(
-        dimensions['Площадь освещения, кв.м.'],
-        'm2',
-        {
-          allowUpperBound: true,
-        },
-      ),
-      mountingMethod: parseText(dimensions['Способ монтажа']),
-      frameMaterial: parseText(dimensions['Материал каркаса']),
-      diffuserShape: parseText(dimensions['Форма рассеивателя']),
-      packaging: parseText(dimensions['Фасовка']),
-      packageHeightCm: parseNumber(dimensions['Упаковка, высота, см']),
-      packageWidthCm: parseNumber(dimensions['Упаковка, ширина, см']),
-      packageLengthCm: parseNumber(dimensions['Упаковка, длина, см']),
-      packageWeightKg: parseNumber(dimensions['Упаковка, вес, кг']),
-      packageVolumeM3: parseNumber(dimensions['Упаковка, объем, куб.м']),
-      quantityPerPackage: parseInteger(dimensions['Количество в упаковке']),
-      lightingMode: parseText(dimensions['Режим свечения']),
-      maxConnectedUnits: parseInteger(
-        dimensions['Соединяется последовательно, шт.'],
-      ),
-      color: parseText(dimensions['Цвет']),
-      wireColor: parseText(dimensions['Цвет провода']),
-      moistureProtection: parseText(dimensions['Влагозащищенность']),
-      hasController: parseBoolean(dimensions['Наличие контроллера']),
-      powerConsumptionW: parseNumber(
-        dimensions['Потребляемая мощность, Вт'],
-        'W',
-      ),
-      isFrostResistant: parseBoolean(dimensions['Морозоустойчивость']),
-    };
+    return { sourceUrl: productUrl, imageUrls, name: title.trim(), attributes };
   }
 }
