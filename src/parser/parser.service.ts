@@ -4,6 +4,15 @@ import { CatalogService } from './catalog.service';
 import { CatalogStorageService } from './catalog-storage.service';
 import { ProductParserService } from './product-parser.service';
 
+const excludedCategories = new Set([
+  'декоративная светотехника',
+  'светодиодные информационные табло',
+  'часы',
+  'комплектующие',
+  'плафоны и абажуры',
+  'ночники',
+]);
+
 @Injectable()
 export class ParserService {
   private readonly logger = new Logger(ParserService.name);
@@ -25,7 +34,13 @@ export class ParserService {
     const saved = { categories: 0, subcategories: 0, products: 0 };
 
     for (const category of categories) {
-      this.logger.log(`Категория: ${category.name} (${category.url})`);
+      const categoryName = category.name
+        .trim()
+        .replace(/\s+/g, ' ')
+        .toLowerCase();
+      if (excludedCategories.has(categoryName)) continue;
+
+      this.logger.log(`Категория: ${category.name}`);
       const savedCategory =
         await this.catalogStorageService.upsertCategory(category);
       saved.categories++;
@@ -34,12 +49,7 @@ export class ParserService {
         category.url,
       );
 
-      this.logger.log(`Найдено подкатегорий: ${subcategories.length}`);
       const sections = subcategories.length > 0 ? subcategories : [category];
-
-      if (subcategories.length === 0) {
-        this.logger.log('Подкатегорий нет, собираю товары самой категории');
-      }
 
       for (const section of sections) {
         const savedSubcategory =
@@ -52,13 +62,11 @@ export class ParserService {
 
         if (savedSubcategory) saved.subcategories++;
 
-        this.logger.log(`Раздел с товарами: ${section.name} (${section.url})`);
         const productUrls = await this.catalogService.getProductUrls(
           section.url,
         );
 
         for (const productUrl of productUrls) {
-          this.logger.log(`Обрабатываю товар: ${productUrl}`);
           const productData =
             await this.productParserService.getProductData(productUrl);
 
@@ -68,7 +76,9 @@ export class ParserService {
             savedSubcategory?.id ?? null,
           );
           saved.products++;
-          this.logger.log(`Сохранён товар: ${productData.name}`);
+          if (saved.products % 100 === 0) {
+            this.logger.log(`Сохранено товаров: ${saved.products}`);
+          }
         }
       }
     }

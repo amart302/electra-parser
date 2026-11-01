@@ -13,11 +13,9 @@ async function bootstrap() {
   app.enableShutdownHooks();
 
   try {
-    const result = await app
+    await app
       .get(ParserService)
       .parse(configService.getOrThrow<string>('TARGET_URL'));
-
-    console.log(result);
   } finally {
     await app.close();
   }

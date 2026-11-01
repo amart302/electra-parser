@@ -4,41 +4,64 @@ export interface ParsedSection {
   imageUrl: string | null;
 }
 
-export interface ParseResult {
+export interface ParsedAttribute {
+  key: string;
+  name: string;
+  type: 'TEXT' | 'NUMBER' | 'BOOLEAN';
+  unit: string | null;
+  value: string | number | boolean;
+}
+
+export interface ParsedProductDimensions {
+  heightMm?: number;
+  widthMm?: number;
+  lengthMm?: number;
+  diameterMm?: number;
+  baseDiameterMm?: number;
+  mountingHoleDiameterMm?: number;
+}
+
+export interface ParsedProductElectrical {
+  voltageV?: number;
+  maxLampPowerW?: number;
+  maxProductPowerW?: number;
+  powerConsumptionW?: number;
+  lampCount?: number;
+  lampBase?: string;
+  ipRating?: string;
+}
+
+export interface ParsedProductAppearance {
+  frameColor?: string;
+  lampshadeColor?: string;
+  baseColor?: string;
+  frameMaterial?: string;
+  lampshadeMaterial?: string;
+  diffuserShape?: string;
+  mountingMethod?: string;
+}
+
+export interface ParsedProductPackaging {
+  packaging?: string;
+  quantityPerPackage?: number;
+  heightCm?: number;
+  widthCm?: number;
+  lengthCm?: number;
+  weightKg?: number;
+  volumeM3?: number;
+}
+
+export interface ParsedCharacteristics {
+  brand: string | null;
+  dimensions?: ParsedProductDimensions;
+  electrical?: ParsedProductElectrical;
+  appearance?: ParsedProductAppearance;
+  packaging?: ParsedProductPackaging;
+  attributes: ParsedAttribute[];
+}
+
+export interface ParseResult extends ParsedCharacteristics {
   sourceUrl: string;
   imageUrls: string[];
   name: string;
-  heightMm: number | null;
-  widthMm: number | null;
-  lengthMm: number | null;
-  diameterMm: number | null;
-  baseDiameterMm: number | null;
-  brand: string | null;
-  lampCount: number | null;
-  maxLampPowerW: number | null;
-  maxProductPowerW: number | null;
-  lampshadeMaterial: string | null;
-  voltageV: number | null;
-  frameColor: string | null;
-  lampshadeColor: string | null;
-  lampBase: string | null;
-  lightingAreaM2: number | null;
-  mountingMethod: string | null;
-  frameMaterial: string | null;
-  diffuserShape: string | null;
-  packaging: string | null;
-  packageHeightCm: number | null;
-  packageWidthCm: number | null;
-  packageLengthCm: number | null;
-  packageWeightKg: number | null;
-  packageVolumeM3: number | null;
-  quantityPerPackage: number | null;
-  lightingMode: string | null;
-  maxConnectedUnits: number | null;
-  color: string | null;
-  wireColor: string | null;
-  moistureProtection: string | null;
-  hasController: boolean | null;
-  powerConsumptionW: number | null;
-  isFrostResistant: boolean | null;
 }
